@@ -12,6 +12,9 @@ import ThemeToggle from '@/components/ThemeToggle';
 import ProfileButton from '@/components/ProfileButton';
 import LoadingScreen from '@/components/LoadingScreen';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import guideService from '@/services/guideService';
+import { calculateDays, calculateCreditCost, validateQuestionnaire } from '@/utils/dataTransformers';
 import 'react-day-picker/dist/style.css';
 
 const interests = [
@@ -31,11 +34,20 @@ const tripTypes = [
   { id: 'relaxation', label: 'Relaxation', icon: '🧘' }
 ];
 
+const travelTypes = [
+  { id: 'solo', label: 'Solo', icon: '🧳' },
+  { id: 'couple', label: 'Couple', icon: '💑' },
+  { id: 'friends', label: 'Friends', icon: '👥' },
+  { id: 'family', label: 'Family', icon: '👨‍👩‍👧‍👦' }
+];
+
 export default function QuestionnairePage() {
   const navigate = useNavigate();
   const { theme } = useTheme();
+  const { user, refreshProfile } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState('');
   const [formData, setFormData] = useState({
     destination: '',
     dateRange: { from: undefined, to: undefined },
@@ -43,7 +55,9 @@ export default function QuestionnairePage() {
     hasBudget: null,
     budget: 5000,
     budgetLevel: '',
-    tripTypes: []
+    tripTypes: [],
+    travelType: '',
+    dislikes: ''
   });
   const [showCalendar, setShowCalendar] = useState(false);
 
@@ -82,8 +96,16 @@ export default function QuestionnairePage() {
     setFormData({ ...formData, tripTypes: updated });
   };
 
+  const selectTravelType = (typeId) => {
+    setFormData({ ...formData, travelType: typeId });
+  };
+
+  const handleDislikesChange = (e) => {
+    setFormData({ ...formData, dislikes: e.target.value });
+  };
+
   const handleNext = () => {
-    if (currentStep < 5) {
+    if (currentStep < 7) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -94,16 +116,55 @@ export default function QuestionnairePage() {
     }
   };
 
-  const handleSubmit = () => {
-    console.log('Travel preferences:', formData);
-    // Show loading screen
+  const handleSubmit = async () => {
+    setApiError('');
+    
+    // Validate form data
+    const validation = validateQuestionnaire(formData, user?.credits || 0);
+    if (!validation.isValid) {
+      const firstError = Object.values(validation.errors)[0];
+      setApiError(firstError);
+      return;
+    }
+    
     setIsLoading(true);
     
-    // Simulate processing time (5 seconds)
-    setTimeout(() => {
-      // Navigate to results page
+    try {
+      // Generate guide
+      const response = await guideService.generateGuide(formData);
+      
+      // Save guide to localStorage
+      localStorage.setItem('scapet_guide', JSON.stringify(response.guide));
+      localStorage.setItem('scapet_guide_city', formData.destination);
+      localStorage.setItem('scapet_guide_days', calculateDays(formData.dateRange).toString());
+      
+      // Refresh user profile to get updated credits
+      await refreshProfile();
+      
+      // Navigate to results
       navigate('/results');
-    }, 5000);
+    } catch (error) {
+      console.error('Error generating guide:', error);
+      
+      // Check if it's a Gemini AI parsing error
+      if (error.message && error.message.includes('JSON')) {
+        setApiError(
+          'La IA tuvo problemas generando el itinerario (error de formato). ' +
+          'Por favor intenta nuevamente. Si el problema persiste, intenta con un destino diferente o menos días.'
+        );
+      } else if (error.message && error.message.includes('timeout')) {
+        setApiError(
+          'La generación del itinerario está tardando demasiado. ' +
+          'Por favor intenta nuevamente en unos momentos.'
+        );
+      } else if (error.message && error.message.includes('credits')) {
+        setApiError(error.message);
+      } else {
+        setApiError(error.message || 'Error al generar el viaje. Por favor intenta nuevamente.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const canProceed = () => {
@@ -121,17 +182,22 @@ export default function QuestionnairePage() {
                (formData.hasBudget ? formData.budget > 0 : formData.budgetLevel !== '');
       case 5:
         return formData.tripTypes.length > 0;
+      case 6:
+        return formData.travelType !== '';
+      case 7:
+        return true; // Dislikes is optional
       default:
         return false;
     }
   };
 
   const getDaysCount = () => {
-    if (formData.dateRange.from && formData.dateRange.to) {
-      const days = Math.ceil((formData.dateRange.to - formData.dateRange.from) / (1000 * 60 * 60 * 24));
-      return days;
-    }
-    return 0;
+    return calculateDays(formData.dateRange);
+  };
+
+  const getCreditCost = () => {
+    const days = getDaysCount();
+    return calculateCreditCost(days);
   };
 
   return (
@@ -144,11 +210,7 @@ export default function QuestionnairePage() {
       <ThemeToggle />
       
       {/* Profile Button - Right */}
-      <ProfileButton 
-        userName="John Doe" 
-        userEmail="john.doe@example.com" 
-        triPoints={100} 
-      />
+      <ProfileButton />
       
       {/* White background in light mode, transparent in dark mode */}
       <div className="absolute inset-0 -z-20 bg-white dark:bg-transparent"></div>
@@ -189,7 +251,7 @@ export default function QuestionnairePage() {
           
           {/* Progress Bar */}
           <div className="flex items-center justify-center gap-2 pt-4">
-            {[1, 2, 3, 4, 5].map((step) => (
+            {[1, 2, 3, 4, 5, 6, 7].map((step) => (
               <div
                 key={step}
                 className={`h-2 rounded-full transition-all duration-300 ${
@@ -202,10 +264,17 @@ export default function QuestionnairePage() {
               />
             ))}
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Step {currentStep} of 5</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Step {currentStep} of 7</p>
         </CardHeader>
 
         <CardContent className="space-y-8 px-8 pb-8">
+          {/* API Error Message */}
+          {apiError && (
+            <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 animate-fadeIn">
+              <p className="text-sm text-red-600 dark:text-red-400">{apiError}</p>
+            </div>
+          )}
+
           {/* Question 1: Destination */}
           {currentStep === 1 && (
             <div className="space-y-4 animate-fadeIn">
@@ -452,6 +521,83 @@ export default function QuestionnairePage() {
             </div>
           )}
 
+          {/* Question 6: Travel Type */}
+          {currentStep === 6 && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="text-center space-y-2">
+                <h2 className="text-2xl font-semibold text-gray-700 dark:text-white">
+                  Who are you traveling with?
+                </h2>
+                <p className="text-gray-600 dark:text-white">Select your travel companion(s)</p>
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto">
+                {travelTypes.map((type) => (
+                  <button
+                    key={type.id}
+                    onClick={() => selectTravelType(type.id)}
+                    className={`p-6 rounded-xl border-2 transition-all duration-300 flex flex-col items-center gap-2 hover:scale-110 hover:shadow-xl ${
+                      formData.travelType === type.id
+                        ? 'border-primary bg-primary/10 scale-105 shadow-lg shadow-primary/30'
+                        : 'border-gray-300 dark:border-gray-700 hover:border-primary/50 bg-white/30 dark:bg-gray-800/50 hover:shadow-primary/20'
+                    }`}
+                  >
+                    <span className="text-4xl transition-transform duration-300">{type.icon}</span>
+                    <span className={`font-semibold ${
+                      formData.travelType === type.id
+                        ? 'text-primary'
+                        : 'text-gray-700 dark:text-white'
+                    }`}>
+                      {type.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Question 7: Dislikes (Optional) */}
+          {currentStep === 7 && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="text-center space-y-2">
+                <h2 className="text-2xl font-semibold text-gray-700 dark:text-white">
+                  Anything you want to avoid?
+                </h2>
+                <p className="text-gray-600 dark:text-white">Optional: Tell us what you'd prefer to skip</p>
+              </div>
+              
+              <div className="max-w-xl mx-auto space-y-4">
+                <textarea
+                  placeholder="e.g., crowds, long walks, spicy food..."
+                  value={formData.dislikes}
+                  onChange={handleDislikesChange}
+                  rows={4}
+                  className="w-full p-4 rounded-lg border-2 border-gray-300 dark:border-gray-700 bg-white/30 dark:bg-black/20 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                />
+                
+                {/* Credit cost summary */}
+                {formData.dateRange.from && formData.dateRange.to && (
+                  <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-700 dark:text-white">Trip duration:</span>
+                      <span className="font-semibold text-primary">{getDaysCount()} days</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mt-2">
+                      <span className="text-gray-700 dark:text-white">Credit cost:</span>
+                      <span className="font-semibold text-primary">{getCreditCost()} credits</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mt-2">
+                      <span className="text-gray-700 dark:text-white">Your balance:</span>
+                      <span className={`font-semibold ${(user?.credits || 0) >= getCreditCost() ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {user?.credits || 0} credits
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Navigation Buttons */}
           <div className="flex justify-between pt-6 border-t border-gray-200 dark:border-gray-700">
             <Button
@@ -463,7 +609,7 @@ export default function QuestionnairePage() {
               Back
             </Button>
             
-            {currentStep < 5 ? (
+            {currentStep < 7 ? (
               <Button
                 onClick={handleNext}
                 disabled={!canProceed()}
@@ -474,7 +620,7 @@ export default function QuestionnairePage() {
             ) : (
               <Button
                 onClick={handleSubmit}
-                disabled={!canProceed()}
+                disabled={!canProceed() || isLoading}
                 className="h-12 px-8 bg-primary hover:bg-primary/90 transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-primary/40 disabled:hover:scale-100 disabled:hover:shadow-none"
               >
                 Create My Trip

@@ -1,18 +1,26 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 
-export default function ProfileButton({ userName = "John Doe", userEmail = "john.doe@example.com", triPoints = 100 }) {
+export default function ProfileButton() {
   const { theme } = useTheme();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
 
   const handleLogout = () => {
     // Close dropdown
     setIsOpen(false);
+    // Logout user
+    logout();
     // Redirect to login page
     navigate('/login');
   };
+
+  const userName = user?.full_name || 'User';
+  const userEmail = user?.email || '';
+  const triPoints = user?.credits || 0;
 
   return (
     <div className="fixed top-4 right-4 z-50">

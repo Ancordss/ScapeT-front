@@ -4,9 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const { register } = useAuth();
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -52,8 +54,6 @@ export default function RegisterPage() {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 8) {
       newErrors.password = 'Password must be at least 8 characters';
-    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
-      newErrors.password = 'Password must contain uppercase, lowercase, and number';
     }
 
     if (!formData.confirmPassword) {
@@ -74,14 +74,19 @@ export default function RegisterPage() {
     }
 
     setIsLoading(true);
+    setErrors({});
 
-    // Simulate API call
-    setTimeout(() => {
-      console.log('Registration data:', formData);
-      setIsLoading(false);
-      // Navigate to login page after successful registration
-      navigate('/login');
-    }, 1500);
+    const result = await register(formData.email, formData.password, formData.fullName);
+    
+    setIsLoading(false);
+    
+    if (result.success) {
+      // Navigate to questionnaire after successful registration
+      navigate('/questionnaire');
+    } else {
+      // Show error message
+      setErrors({ api: result.error });
+    }
   };
 
   return (
@@ -110,6 +115,11 @@ export default function RegisterPage() {
         </CardHeader>
         <CardContent className="flex-1 flex items-center justify-center pb-8">
           <form onSubmit={handleSubmit} className="space-y-6 w-full max-w-sm px-4">
+            {errors.api && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                <p className="text-sm text-red-600 dark:text-red-400">{errors.api}</p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="fullName" className="text-gray-700 dark:text-white">Full Name</Label>
               <Input

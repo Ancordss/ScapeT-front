@@ -1,155 +1,148 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Silk from '@/components/Silk';
 import ThemeToggle from '@/components/ThemeToggle';
 import ProfileButton from '@/components/ProfileButton';
 import { useTheme } from '@/contexts/ThemeContext';
-
-// Mock data - this would come from your API/backend
-const mockItinerary = {
-  "guide": [
-    {
-      "day": 1,
-      "title": "Barrio Gótico y Playas de Barceloneta",
-      "zone": "Ciudad Vieja y Costa",
-      "pace": "balanced",
-      "schedule": [
-        {
-          "time": "09:00",
-          "place": "Mercat de la Boqueria",
-          "activity_type": "food",
-          "estimated_duration_minutes": 75,
-          "physical_effort": "low",
-          "best_time_window": "morning",
-          "reason": "Mercado icónico perfecto para empezar el día con desayuno local auténtico, alineado con tu interés en gastronomía",
-          "traveler_tips": [
-            "Llegar antes de las 10am para evitar multitudes de turistas",
-            "Probar los zumos frescos en el puesto cercano a la entrada principal",
-            "No comer en los primeros puestos de la Rambla, adentrarse al mercado"
-          ],
-          "avoid_if": [
-            "Después de las 11am (lleno de tours)"
-          ]
-        },
-        {
-          "time": "10:30",
-          "place": "Catedral de Barcelona y Claustro",
-          "activity_type": "history",
-          "estimated_duration_minutes": 60,
-          "physical_effort": "low",
-          "best_time_window": "morning",
-          "reason": "Obra maestra gótica con historia significativa, el claustro tiene gansos que datan de tradiciones medievales",
-          "traveler_tips": [
-            "Entrada gratuita de 8am-12:30pm, ideal para presupuesto medio",
-            "Visitar el claustro con los 13 gansos (simbolismo de Santa Eulalia)",
-            "Subir a la terraza del edificio contiguo para vistas panorámicas"
-          ],
-          "avoid_if": [
-            "Domingos por la tarde (ceremonias religiosas)"
-          ]
-        }
-      ],
-      "daily_tips": [
-        "Usar T-10 (tarjeta de transporte, 10 viajes por €11.35)",
-        "Zonas principalmente peatonales, poco transporte necesario hoy",
-        "Llevar botella de agua reutilizable (fuentes públicas en parques)",
-        "Día diseñado para evitar aglomeraciones con horarios estratégicos"
-      ]
-    },
-    {
-      "day": 2,
-      "title": "Gràcia Bohemio y Vistas de Montjuïc",
-      "zone": "Gràcia y Montaña de Montjuïc",
-      "pace": "relaxed",
-      "schedule": [
-        {
-          "time": "09:30",
-          "place": "Desayuno en Gràcia - Plaça del Sol",
-          "activity_type": "food",
-          "estimated_duration_minutes": 60,
-          "physical_effort": "low",
-          "best_time_window": "morning",
-          "reason": "Barrio local favorito de barceloneses, menos turístico, ambiente auténtico perfecto para parejas",
-          "traveler_tips": [
-            "Cafés recomendados: Café Salambo o Satan's Coffee Corner",
-            "El barrio tiene alma propia, muy diferente al centro turístico",
-            "Explorar calles adyacentes con tiendas vintage y librerías"
-          ],
-          "avoid_if": []
-        }
-      ],
-      "daily_tips": [
-        "Usar metro: Fontana (Gràcia), luego Paral·lel (Montjuïc)",
-        "Día menos intenso, perfecto para día 2 (evitar agotamiento)",
-        "Llevar cámara - vistas fotogénicas todo el día"
-      ]
-    }
-  ]
-};
-
-// Activity type icons
-const activityIcons = {
-  food: (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2M7 2v20M21 15V2v0a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>
-    </svg>
-  ),
-  history: (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-    </svg>
-  ),
-  culture: (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-    </svg>
-  ),
-  nature: (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-    </svg>
-  ),
-  sightseeing: (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
-    </svg>
-  )
-};
-
-// Effort level badge
-const EffortBadge = ({ level }) => {
-  const colors = {
-    low: 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30 hover:bg-green-500/30',
-    medium: 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/30',
-    high: 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30 hover:bg-red-500/30'
-  };
-  
-  return (
-    <span className={`font-tech text-xs tracking-widest uppercase px-2 py-1 rounded-full border transition-all duration-300 hover:scale-110 ${colors[level]}`}>
-      {level}
-    </span>
-  );
-};
-
-// Pace badge
-const PaceBadge = ({ pace }) => {
-  const paceLabels = {
-    balanced: 'Balanced',
-    relaxed: 'Relaxed',
-    intense: 'Intense'
-  };
-  
-  return (
-    <span className="font-tech text-xs tracking-widest uppercase px-3 py-1 rounded-full bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 hover:scale-110 transition-all duration-300">
-      {paceLabels[pace]}
-    </span>
-  );
-};
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ResultsPage() {
   const { theme } = useTheme();
+  const { refreshProfile } = useAuth();
+  const navigate = useNavigate();
   const [selectedDay, setSelectedDay] = useState(1);
+  const [itinerary, setItinerary] = useState(null);
+  const [cityName, setCityName] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
-  const currentDay = mockItinerary.guide.find(d => d.day === selectedDay);
+  useEffect(() => {
+    // Load guide data from localStorage
+    const guideData = localStorage.getItem('scapet_guide');
+    const city = localStorage.getItem('scapet_guide_city');
+    
+    if (!guideData) {
+      // No guide data, redirect to questionnaire
+      navigate('/questionnaire');
+      return;
+    }
+    
+    try {
+      const parsedGuide = JSON.parse(guideData);
+      setItinerary({ guide: parsedGuide });
+      setCityName(city || 'Your Destination');
+      
+      // Refresh user profile to get updated credits
+      refreshProfile();
+    } catch (error) {
+      console.error('Error parsing guide data:', error);
+      navigate('/questionnaire');
+      return;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [navigate, refreshProfile]);
+
+  if (isLoading || !itinerary) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Cargando tu itinerario...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const currentDay = itinerary.guide.find(d => d.day === selectedDay);
+
+  // Activity type icons
+  const activityIcons = {
+    food: (
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2M7 2v20M21 15V2v0a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>
+      </svg>
+    ),
+    history: (
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+    ),
+    culture: (
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+      </svg>
+    ),
+    nature: (
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+    ),
+    sightseeing: (
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
+      </svg>
+    ),
+    shopping: (
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <path d="M16 10a4 4 0 0 1-8 0"/>
+      </svg>
+    ),
+    nightlife: (
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    ),
+    adventure: (
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+      </svg>
+    ),
+    relaxation: (
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M2.5 16.88a1 1 0 0 1-.32-1.43l9-13.02a1 1 0 0 1 1.64 0l9 13.01a1 1 0 0 1-.32 1.44l-8.51 4.86a2 2 0 0 1-1.98 0z"/>
+        <path d="M12 2v20"/>
+      </svg>
+    ),
+    rest: (
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M2 12h20"/>
+        <path d="M2 6h20"/>
+        <path d="M2 18h20"/>
+      </svg>
+    )
+  };
+
+  // Effort level badge
+  const EffortBadge = ({ level }) => {
+    const colors = {
+      low: 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30 hover:bg-green-500/30',
+      medium: 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/30',
+      high: 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30 hover:bg-red-500/30'
+    };
+    
+    return (
+      <span className={`font-tech text-xs tracking-widest uppercase px-2 py-1 rounded-full border transition-all duration-300 hover:scale-110 ${colors[level]}`}>
+        {level}
+      </span>
+    );
+  };
+
+  // Pace badge
+  const PaceBadge = ({ pace }) => {
+    const paceLabels = {
+      balanced: 'Balanced',
+      relaxed: 'Relaxed',
+      intense: 'Intense'
+    };
+    
+    return (
+      <span className="font-tech text-xs tracking-widest uppercase px-3 py-1 rounded-full bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 hover:scale-110 transition-all duration-300">
+        {paceLabels[pace]}
+      </span>
+    );
+  };
 
   const handleExportPDF = () => {
     // Trigger browser print dialog which allows saving as PDF
@@ -303,11 +296,7 @@ export default function ResultsPage() {
       <ThemeToggle />
       
       {/* Profile Button - Right */}
-      <ProfileButton 
-        userName="John Doe" 
-        userEmail="john.doe@example.com" 
-        triPoints={100} 
-      />
+      <ProfileButton />
 
       {/* Main Content Container - Normal scroll */}
       <div className="pt-16 pb-8 px-4 lg:px-8">
@@ -330,7 +319,7 @@ export default function ResultsPage() {
                 </svg>
                 <div>
                   <h1 className="text-2xl md:text-3xl font-semibold text-gray-800 dark:text-white">
-                    Your Travel Itinerary
+                    Your {cityName} Itinerary
                   </h1>
                   <p className="text-xs text-gray-600 dark:text-gray-400">
                     Personalized by ScapeT
@@ -349,7 +338,7 @@ export default function ResultsPage() {
 
           {/* Day Tabs */}
           <div className="flex gap-2 overflow-x-auto pb-2 print:hidden">
-            {mockItinerary.guide.map((day) => (
+            {itinerary.guide.map((day) => (
               <button
                 key={day.day}
                 onClick={() => setSelectedDay(day.day)}
@@ -372,7 +361,7 @@ export default function ResultsPage() {
 
           {/* Print Only - Show all days */}
           <div className="hidden print:block">
-            {mockItinerary.guide.map((day) => renderDayContent(day))}
+            {itinerary.guide.map((day) => renderDayContent(day))}
           </div>
         </div>
       </div>

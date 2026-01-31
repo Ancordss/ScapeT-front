@@ -4,9 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -41,8 +43,8 @@ export default function LoginPage() {
 
     if (!formData.password) {
       newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
     }
 
     setErrors(newErrors);
@@ -57,14 +59,19 @@ export default function LoginPage() {
     }
 
     setIsLoading(true);
+    setErrors({});
 
-    // Simulate API call
-    setTimeout(() => {
-      console.log('Login data:', formData);
-      setIsLoading(false);
+    const result = await login(formData.email, formData.password);
+    
+    setIsLoading(false);
+    
+    if (result.success) {
       // Navigate to questionnaire after successful login
       navigate('/questionnaire');
-    }, 1500);
+    } else {
+      // Show error message
+      setErrors({ api: result.error });
+    }
   };
 
   return (
@@ -93,6 +100,11 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent className="flex-1 flex items-center justify-center pb-8">
           <form onSubmit={handleSubmit} className="space-y-6 w-full max-w-sm px-4">
+            {errors.api && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                <p className="text-sm text-red-600 dark:text-red-400">{errors.api}</p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email" className="text-gray-700 dark:text-white">Email</Label>
               <Input
